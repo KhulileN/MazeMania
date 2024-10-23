@@ -1,0 +1,297 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Maze Mania</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background-color: #b9b9b9;
+        }
+        header {
+            background-color: #b9b9b9;
+            color: #000;
+            padding: 10px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        #canvasContainer {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #canvas {
+            background-color: #fff;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .buttons button {
+            background-color: #c80000; 
+            color: white; 
+            padding: 10px 20px;
+            border-radius: 5px; 
+            font-size: 16px;
+            cursor: pointer;
+        }
+        footer {
+            background-color: #b9b9b9;
+            color: #000;
+            text-align: center;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div id="editableTextContainer">
+            <h1 id="editableText">Editable Text</h1>
+        </div>
+    </header>
+    <div id="canvasContainer">
+        <canvas id="canvas"></canvas>
+    </div>
+    <footer>
+        <div class="buttons">
+            <button id="restartButton">Restart</button>
+        </div>
+    </footer>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const ctx = canvas.getContext('2d');
+        const size = Math.min(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
+        canvas.width = size;
+        canvas.height = size;
+
+        let gridSize;
+        let startX;
+        let startY;
+        let x;
+        let y;
+        let EndX;
+        let EndY;
+        let blockSize;
+        let vector2D;
+        let level = 1;
+        let lives = 5;
+        let traps = [];
+        let boosts = [];
+        let time = 90000; // Initial timer value (90 seconds)
+        let speed = 1;
+
+        const tickSpeed = 150;
+
+        startGame(5);
+        setInterval(update, tickSpeed);
+
+        function startGame(difficulty) {
+            ctx.clearRect(0, 0, size, size);
+            getInitialData(difficulty);
+            generateMaze();
+            drawMaze();            
+            drawBall(x, y, '#c80000');
+            drawBall(EndX, EndY, 'black');
+            getTraps();
+            drawTraps();
+        }
+        
+        function getInitialData(difficulty) {
+            gridSize = difficulty;
+            startX = 1; // Starting x position
+            startY = 1; // Starting y position
+            x = startX; // Player's current x position
+            y = startY; // Player's current y position
+            EndX = gridSize - 2; // End x position
+            EndY = gridSize - 2; // End y position
+            blockSize = size / gridSize; // Calculate block size
+            traps = [];
+            boosts = [];  
+        }
+
+        function drawMaze() {
+            for (let i = 0; i < vector2D.length; i++) {
+                for (let j = 0; j < vector2D[i].length; j++) {
+                    if (vector2D[i][j] === 1) {
+                        drawSquare(j, i, '#000000');
+                    }
+                }
+            }
+        }
+    
+        function generateMaze() {
+            vector2D = [];
+            for (let i = 0; i < gridSize; i++) {
+                vector2D[i] = [];
+                for (let j = 0; j < gridSize; j++) {
+                    vector2D[i][j] = (i % 2 === 0 || j % 2 === 0) ? 1 : 0;
+                }
+            }
+
+            const stack = [];
+            const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+
+            const startX = 1;
+            const startY = 1;
+
+            stack.push([startX, startY]);
+            visited[startX][startY] = true;
+
+            while (stack.length > 0) {
+                const current = stack.pop();
+                const [x, y] = current;
+                const directions = shuffleDirections();
+
+                for (let direction of directions) {
+                    const newX = x + direction[0] * 2;
+                    const newY = y + direction[1] * 2;
+
+                    if (newX >= 1 && newX < gridSize - 1 && newY >= 1 && newY < gridSize - 1 && !visited[newX][newY]) {
+                        vector2D[(newX + x) / 2][(newY + y) / 2] = 0;
+                        visited[newX][newY] = true;
+                        stack.push([newX, newY]);
+                    }
+                }
+            }
+
+            vector2D[startX][startY] = 0; 
+            vector2D[EndX][EndY] = 0;
+        }
+
+        function shuffleDirections() {
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            for (let i = directions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [directions[i], directions[j]] = [directions[j], directions[i]];
+            }
+
+            return directions;
+        }
+        
+        function drawSquare(xPos, yPos, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(xPos * blockSize, yPos * blockSize, blockSize, blockSize);
+        }
+
+        function drawBall(xPos, yPos, color) {
+            const centerX = xPos * blockSize + blockSize / 2;
+            const centerY = yPos * blockSize + blockSize / 2;
+            const radius = blockSize / 2 - 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function getTraps() {
+            for (let i = 1; i < vector2D.length - 1; i++) {
+                for (let j = 1; j < vector2D[i].length - 1; j++) {
+                    let tel = 0;
+                    if (vector2D[i + 1][j] === 1) tel++;
+                    if (vector2D[i - 1][j] === 1) tel++;
+                    if (vector2D[i][j + 1] === 1) tel++;
+                    if (vector2D[i][j - 1] === 1) tel++;
+
+                    if (tel === 3 && !(EndX === j && EndY === i) && vector2D[i][j] === 0 && Math.random() < 0.30) {
+                        if (Math.random() < 0.10) {
+                            boosts.push([j, i]);
+                        } else {
+                            traps.push([j, i]);
+                        }
+                    }
+                }
+            }
+        }
+
+        function drawTraps() {
+            for (let trap of traps) {
+                drawBall(trap[0], trap[1], 'yellow');
+            }
+            for (let boost of boosts) {
+                drawBall(boost[0], boost[1], 'blue');
+            }
+        }
+
+        function update() {
+            time -= tickSpeed;
+
+            if (time < 0) {
+                alert('Time is up! You reached level ' + level);
+                return;
+            }
+
+            editableText.innerText = 'Time: ' + Math.round(time / 1000) + '\tLevel: ' + level;
+
+            ctx.clearRect(0, 0, size, size); // Clear entire canvas
+            drawMaze(); // Redraw the maze
+            drawTraps(); // Redraw traps and boosts
+            drawBall(x, y, '#c80000'); // Redraw the player's ball
+            drawBall(EndX, EndY, 'black'); // Redraw the end point
+
+            // Check if player reached the end point
+            if (x === EndX && y === EndY) {
+                alert('Start level ' + (level + 1));
+                level++;
+                startGame(gridSize + 4);
+            }
+
+            // Check for trap collision
+            traps.forEach(trap => {
+                if (trap[0] === x && trap[1] === y) {
+                    alert('You hit a trap! Restarting at the starting position.');
+                    x = startX; // Reset player position
+                    y = startY; // Reset player position
+                }
+            });
+
+            // Check for boost collision
+            boosts.forEach((boost, index) => {
+                if (boost[0] === x && boost[1] === y) {
+                    time += 10000; // Increase timer by 10 seconds (10000 milliseconds)
+                    boosts.splice(index, 1); // Remove collected boost
+                    alert('Timer increased by 10 seconds!'); // Optional: alert for timer increase
+                }
+            });
+        }
+
+        document.getElementById('restartButton').addEventListener('click', function() {
+            lives = 5; // Reset lives
+            level = 1; // Reset level
+            startGame(gridSize); // Restart game
+        });
+
+        // Keyboard control for movement
+        window.addEventListener('keydown', function(e) {
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (vector2D[y - 1][x] === 0) y--;
+                    break;
+                case 'ArrowDown':
+                    if (vector2D[y + 1][x] === 0) y++;
+                    break;
+                case 'ArrowLeft':
+                    if (vector2D[y][x - 1] === 0) x--;
+                    break;
+                case 'ArrowRight':
+                    if (vector2D[y][x + 1] === 0) x++;
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
